@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galery Galaxy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Georgia&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    :root {
+      --start-width: 440px;
+      --start-height: 260px;
+      --start-accent: #ff74c9;
+      --start-accent-2: #cca6ff;
+      --start-stroke: rgba(255, 255, 255, 0.24);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'JetBrains Mono', monospace;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      color: #fff;
+    }
+
+    #webgl-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 1;
+    }
+
+    #start-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: 
+        radial-gradient(45% 45% at 15% 100%, rgba(204, 166, 255, 0.2), transparent 60%),
+        radial-gradient(45% 45% at 85% 0%, rgba(255, 116, 201, 0.2), transparent 60%),
+        radial-gradient(circle at center, rgba(14, 11, 26, 0.95), rgba(4, 3, 8, 0.98));
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+
+    #start-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #start-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: clamp(300px, 90vw, var(--start-width));
+      min-height: var(--start-height);
+      padding: 24px;
+      border-radius: 20px;
+      border: 1px solid var(--start-stroke);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.45));
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
+      text-align: center;
+    }
+
+    #start-card h1 {
+      font-family: 'Georgia', serif;
+      font-size: clamp(24px, 5vw, 36px);
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(255, 116, 201, 0.4);
+    }
+
+    #start-gif {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 8px;
+      object-fit: contain;
+    }
+
+    .sub-text {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--start-accent-2);
+      margin-bottom: 20px;
+    }
+
+    #btn-iniciar {
+      background: linear-gradient(135deg, var(--start-accent), #c23898);
+      color: white;
+      border: none;
+      padding: 10px 32px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      border-radius: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(255, 116, 201, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    #btn-iniciar:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 116, 201, 0.6);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Awal dengan Teks Baru -->
+  <div id="start-overlay">
+    <div id="start-card">
+      <h1>Galery Galaxy</h1>
+      <img id="start-gif" src="https://media.tenor.com/gU86W-mJYcAAAAAi/bear-panda.gif" alt="Cinta">
+      <div class="sub-text">For you Eyapina</div>
+      <button id="btn-iniciar">MULAI</button>
+    </div>
+  </div>
+
+  <canvas id="webgl-canvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 150, 200);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxDistance = 150;
+    controls.minDistance = 5;
+
+    const galaxyGroup = new THREE.Group();
+    scene.add(galaxyGroup);
+
+    // --- 1. PARTIKEL BINTANG BACKGROUND (Membuat Luar Angkasa Realistis) ---
+    const bgStarCount = 10000;
+    const bgStarGeometry = new THREE.BufferGeometry();
+    const bgStarPositions = new Float32Array(bgStarCount * 3);
+
+    for (let i = 0; i < bgStarCount; i++) {
+      bgStarPositions[i * 3]     = (Math.random() - 0.5) * 400;
+      bgStarPositions[i * 3 + 1] = (Math.random() - 0.5) * 400;
+      bgStarPositions[i * 3 + 2] = (Math.random() - 0.5) * 400;
+    }
+    bgStarGeometry.setAttribute('position', new THREE.BufferAttribute(bgStarPositions, 3));
+    const bgStarMaterial = new THREE.PointsMaterial({
+      size: 0.1,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.6
+    });
+    const bgStars = new THREE.Points(bgStarGeometry, bgStarMaterial);
+    scene.add(bgStars);
+
+    // --- 2. PARTIKEL UTAMA GALAKSI (Ditingkatkan menjadi 70,000 Partikel) ---
+    const particleCount = 70000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+
+    const colorCore = new THREE.Color('#fff0ff');
+    const colorInside = new THREE.Color('#ff74c9');
+    const colorOutside = new THREE.Color('#5c35ff');
+
+    for (let i = 0; i < particleCount; i++) {
+      const r = Math.pow(Math.random(), 2.2) * 35;
+      const branches = 4; // 4 Lengan Spiral Galaksi
+      const theta = ((i % branches) * (2 * Math.PI) / branches) + r * 0.22;
+
+      // Dispersi partikel acak agar memiliki efek ketebalan gas/debu
+      const randomX = (Math.random() - 0.5) * (35 - r) * 0.12;
+      const randomY = (Math.random() - 0.5) * (35 - r) * 0.12;
+      const randomZ = (Math.random() - 0.5) * (35 - r) * 0.12;
+
+      positions[i * 3]     = Math.cos(theta) * r + randomX;
+      positions[i * 3 + 1] = randomY;
+      positions[i * 3 + 2] = Math.sin(theta) * r + randomZ;
+
+      // Gradasi warna dari pusat terang ke lengan berwarna ungu/pink
+      let mixedColor;
+      if (r < 5) {
+        mixedColor = colorCore.clone().lerp(colorInside, r / 5);
+      } else {
+        mixedColor = colorInside.clone().lerp(colorOutside, (r - 5) / 30);
+      }
+
+      colors[i * 3]     = mixedColor.r;
+      colors[i * 3 + 1] = mixedColor.g;
+      colors[i * 3 + 2] = mixedColor.b;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.1,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85
+    });
+
+    const galaxyParticles = new THREE.Points(geometry, material);
+    galaxyGroup.add(galaxyParticles);
+
+    // --- 3. PARTIKEL HATI MERAH MUDA (5,000 Partikel) ---
+    const heartCount = 5000;
+    const heartGeometry = new THREE.BufferGeometry();
+    const heartPositions = new Float32Array(heartCount * 3);
+
+    for (let i = 0; i < heartCount; i++) {
+      const t = Math.PI * 2 * Math.random();
+      let x = 16 * Math.pow(Math.sin(t), 3);
+      let y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+      
+      x *= 0.38;
+      y *= 0.38;
+
+      heartPositions[i * 3]     = x + (Math.random() - 0.5) * 0.3;
+      heartPositions[i * 3 + 1] = y + 8 + (Math.random() - 0.5) * 0.3; 
+      heartPositions[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+    }
+
+    heartGeometry.setAttribute('position', new THREE.BufferAttribute(heartPositions, 3));
+    const heartMaterial = new THREE.PointsMaterial({
+      color: 0xff33aa,
+      size: 0.16,
+      transparent: true,
+      opacity: 0.95
+    });
+
+    const heartParticles = new THREE.Points(heartGeometry, heartMaterial);
+    galaxyGroup.add(heartParticles);
+
+    // --- 4. TEKS PERUBAHAN SESUAI PERMINTAAN ---
+    const pesanRomantis = [
+      "SERA BOCIL ROBLOX", 
+      "IDOL BANGET", 
+      "CBL (Cuman Bisa Lylia)", 
+      "SERA MAWI", 
+      "LOVE YOUUU",            // Ganti "BERSAMAMU SELALU"
+      "SEMANGAT YA SER",       // Ganti "AKU MENCINTAIMU"
+      "KAPAN YA LIVE NYA?",     // Ganti "CINTA ABADI"
+      "LIVE KALO MOOD DOANG"   // Ganti "TAK HINGGA"
+    ];
+
+    function createTextSprite(text) {
+      const canvasText = document.createElement('canvas');
+      const ctx = canvasText.getContext('2d');
+      canvasText.width = 512;
+      canvasText.height = 128;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'Bold 28px "JetBrains Mono", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#ff74c9';
+      ctx.shadowBlur = 12;
+      ctx.fillText(text, 256, 70);
+
+      const texture = new THREE.CanvasTexture(canvasText);
+      const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(12, 3, 1);
+      return sprite;
+    }
+
+    pesanRomantis.forEach((text, idx) => {
+      const sprite = createTextSprite(text);
+      const angle = (idx / pesanRomantis.length) * Math.PI * 2;
+      const radius = 20;
+      sprite.position.set(Math.cos(angle) * radius, 1.5, Math.sin(angle) * radius);
+      galaxyGroup.add(sprite);
+    });
+
+    // Variabel Animasi Pembuka
+    let isAnimatingEntrance = false;
+    let targetCameraPos = { x: 0, y: 22, z: 38 };
+
+    // Loop Animasi Utama
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Transition Zoom Pembuka
+      if (isAnimatingEntrance) {
+        camera.position.x += (targetCameraPos.x - camera.position.x) * 0.03;
+        camera.position.y += (targetCameraPos.y - camera.position.y) * 0.03;
+        camera.position.z += (targetCameraPos.z - camera.position.z) * 0.03;
+
+        if (Math.abs(camera.position.z - targetCameraPos.z) < 0.5) {
+          isAnimatingEntrance = false;
+        }
+      }
+
+      // Rotasi Galaksi & Bintang Background
+      galaxyGroup.rotation.y += 0.0012;
+      bgStars.rotation.y += 0.0002;
+
+      // Denyut Jantung Tengah
+      const time = Date.now() * 0.003;
+      const heartPulse = 1 + Math.sin(time * 2.5) * 0.05;
+      heartParticles.scale.set(heartPulse, heartPulse, heartPulse);
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Event Klik Tombol MULAI
+    const btnIniciar = document.getElementById('btn-iniciar');
+    const startOverlay = document.getElementById('start-overlay');
+
+    btnIniciar.addEventListener('click', () => {
+      startOverlay.classList.add('hidden');
+      isAnimatingEntrance = true;
+    });
+
+    // Responsive Canvas
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
